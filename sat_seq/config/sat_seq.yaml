@@ -1,0 +1,47 @@
+# SAT-Seq 配置文件
+
+algorithm:
+  gamma: 0.99
+  lam: 0.95
+  kl_penalty: kl
+  kl_ctrl:
+    type: per_state_quantile
+    kl_coef: 0.001
+    target_kl: 0.05
+    quantile: 0.99
+
+actor_rollout_ref:
+  actor:
+    use_kl_loss: true
+    kl_loss_type: k1+
+    kl_loss_coef: ${algorithm.kl_ctrl.kl_coef}
+    ppo_epochs: 1
+    clip_ratio: 0.2
+    loss_agg_mode: token-mean
+  rollout:
+    n: 4
+  ref: {}
+
+data:
+  train_batch_size: 512
+  max_prompt_length: 512
+  max_response_length: 2048
+
+sat_seq:
+  epsilon: 0.2
+  A_clip: 5.0
+  group_size: ${actor_rollout_ref.rollout.n}
+  epsilon_is: 1.0e-05
+  max_is_ratio_clip: 10.0
+  scheduler:
+    mode: static
+  max_backtracks: 5
+  agents:
+    - {name: agent_1, path: "/Users/apple/Downloads/verl-main 2/models/qwen3-4b-1"}
+    - {name: agent_2, path: "/Users/apple/Downloads/verl-main 2/models/qwen3-4b-2"}
+    - {name: agent_3, path: "/Users/apple/Downloads/verl-main 2/models/qwen3-4b-3"}
+
+logging:
+  checkpoint_every_stage: 1
+  every_n_steps: 10
+  save_dir: outputs/sat_seq
