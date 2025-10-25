@@ -19,7 +19,6 @@ SAT-Seq addresses the challenge of optimizing multiple agents in a sequential ma
 recipes/sat_seq/
 ├── README.md                   # Documentation
 ├── QUICK_START.md              # Getting started guide
-├── 答案总结.md                  # Technical Q&A (Chinese)
 ├── __init__.py                 # Module initialization
 ├── real_controller.py          # Real-world data controller
 ├── agent_scheduler.py          # Agent update scheduler
