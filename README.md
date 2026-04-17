@@ -36,8 +36,6 @@ These ingredients yield (i) a **single-step and joint-stage monotonic improvemen
 ```
 SAT-AAMAS/
 ├── configs/                 # YAML configs (sat_demo, sat_default, sat_pnp)
-├── data/                    # Datasets prepared via scripts/prepare_data.py
-├── manuscripts/             # AAMAS 2026 manuscript (LaTeX source + figures)
 ├── sat/                     # Core package
 │   ├── stage_coordinator.py     # Algorithm 1 outer loop
 │   ├── agent_scheduler.py       # ORDERAGENTS (static / random / greedy)
@@ -60,6 +58,8 @@ SAT-AAMAS/
 ├── setup.py
 └── LICENSE                  # MIT
 ```
+
+The repository intentionally does not track manuscript sources, generated datasets, checkpoints, or run outputs. Dataset files are regenerated under `data/<dataset>/` by `scripts/prepare_data.py` and are ignored by git.
 
 ## Minimal usage
 
@@ -186,7 +186,7 @@ Override `--num_stages` from the command line if you want to vary stage count wi
 
 ## Datasets
 
-`scripts/prepare_data.py` writes the JSONL files expected by every config. Available dataset names: `demo`, `aime24`, `aime25`, `math500`, `dapo`. See [data/README.md](data/README.md) for the schemas.
+`scripts/prepare_data.py` writes the JSONL files expected by every config. Available dataset names: `demo`, `aime24`, `aime25`, `math500`, `dapo`. Generated files are local-only and ignored by git.
 
 ## Reproducing the main results
 

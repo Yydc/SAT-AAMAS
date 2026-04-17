@@ -27,16 +27,10 @@ logs/
 *.ckpt
 *.safetensors
 
-# Datasets cached locally (manually regenerable via prepare_data.py)
-data/demo/
-data/aime24/
-data/aime25/
-data/math500/
-data/math/
-data/dapo/
-data/zebralogic/
-data/arbench/
-data/planbench/
-data/autologi/
+# Local-only paper sources and generated datasets.
+# The open-source repo keeps code/configs only; scripts/prepare_data.py
+# regenerates data/<dataset>/ on demand.
+manuscripts/
+data/
 hf_cache/
 .cache/
