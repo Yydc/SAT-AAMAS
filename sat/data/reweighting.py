@@ -13,8 +13,9 @@ class TruncatedISReweighter:
     config: Dict
 
     def __post_init__(self):
-        self.epsilon_is = self.config["sat_seq"].get("epsilon_is", 1e-5)
-        self.max_ratio_clip = self.config["sat_seq"].get("max_is_ratio_clip", 10.0)
+        sat_cfg = self.config.get("sat") or self.config.get("sat_seq") or {}
+        self.epsilon_is = sat_cfg.get("epsilon_is", 1e-5)
+        self.max_ratio_clip = sat_cfg.get("max_is_ratio_clip", 10.0)
 
     def apply(self, stage_batch: Dict, inter_policy_state: Dict) -> Dict:
         """

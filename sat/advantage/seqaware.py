@@ -16,14 +16,15 @@ class SATSeqAdvEstimator:
     config: Dict
 
     def __post_init__(self):
-        self.A_clip = self.config["sat_seq"].get("A_clip", 5.0)
-        self.group_size = self.config["sat_seq"].get("group_size", 4)
+        sat_cfg = self.config.get("sat") or self.config.get("sat_seq") or {}
+        self.A_clip = sat_cfg.get("A_clip", 5.0)
+        self.group_size = sat_cfg.get("group_size", 4)
         self.lam = self.config["algorithm"].get("lam", 0.95)
         self.gamma = self.config["algorithm"].get("gamma", 0.99)
         # GRPO-related config
-        self.adv_mode = self.config.get("sat_seq", {}).get("adv_mode", "grpo")  # grpo | gae
-        self.group_baseline = self.config.get("sat_seq", {}).get("group_baseline", "mean")  # mean|max
-        self.group_norm = bool(self.config.get("sat_seq", {}).get("group_norm", True))
+        self.adv_mode = sat_cfg.get("adv_mode", "grpo")  # grpo | gae
+        self.group_baseline = sat_cfg.get("group_baseline", "mean")  # mean|max
+        self.group_norm = bool(sat_cfg.get("group_norm", True))
 
     def compute(self, stage_batch_i: Dict, inter_policy_state: Dict) -> Tuple[np.ndarray, np.ndarray, float]:
         """
@@ -123,7 +124,7 @@ class SATSeqAdvEstimator:
         seq_adv = np.clip(seq_adv, -self.A_clip, self.A_clip)
         
         # Bias proxy (placeholder)
-        # TODO: Implement precise calculation of zeta_i based on the SAT-Seq paper
+        # TODO: Implement a tighter zeta_i estimator from the SAT analysis.
         zeta_i = float(np.mean(np.abs(advantages.sum(axis=1) - seq_adv))) if group_index is not None else 0.0
         
         return seq_adv, returns, zeta_i

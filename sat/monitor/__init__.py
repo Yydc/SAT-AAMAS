@@ -1,5 +1,5 @@
 """
-Monitoring and certificate tracking for SAT-Seq recipe.
+Monitoring and certificate tracking for SAT.
 
 This subpackage provides PAC-style certificate tracking with:
   - Information gain accumulation across sequential updates
@@ -8,4 +8,3 @@ This subpackage provides PAC-style certificate tracking with:
 """
 
 __all__ = ["CertificateMonitor", "InfoGeom"]
-

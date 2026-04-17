@@ -1,0 +1,64 @@
+# Plug-and-play upgrade configuration.
+#
+# Start from a SAT-trained checkpoint (--ckpt_dir) and swap a subset of the
+# team with a stronger pretrained model. The Stage-0 aligner projects the
+# replacement onto the per-state KL trust region around the incumbent so
+# the monotonic-improvement certificates remain valid.
+#
+# Used by scripts/plug_and_play.py (see README "Plug-and-play upgrade").
+
+algorithm:
+  gamma: 0.99
+  lam: 0.95
+  kl_ctrl:
+    type: per_state_quantile
+    kl_coef: 0.001
+    target_kl: 0.05
+    quantile: 0.99
+
+data:
+  max_response_length: 32768
+
+generation:
+  temperature: 0.8
+  top_p: 1.0
+
+sat:
+  epsilon: 0.2
+  A_clip: 5.0
+  group_size: 4
+  adv_mode: grpo
+  group_baseline: mean
+  group_norm: true
+  scheduler:
+    mode: static
+  max_backtracks: 5
+  stage0_delta: 0.01
+  # Replace two of the three 4B agents with 8B upgrades -- reproduces the
+  # "Replace two with Qwen3-8B" row of Table 3.
+  agents:
+    - {name: agent_1, path: Qwen/Qwen3-4B-Instruct, upgrade: null}
+    - {name: agent_2, path: Qwen/Qwen3-4B-Instruct, upgrade: Qwen/Qwen3-8B-Instruct}
+    - {name: agent_3, path: Qwen/Qwen3-4B-Instruct, upgrade: Qwen/Qwen3-8B-Instruct}
+
+training:
+  learning_rate: 1.0e-5
+  vf_coef: 0.1
+  clip_vf: true
+  num_stages: 5
+
+evaluation:
+  num_samples_per_agent: 64
+  ensemble_strategy: majority_vote
+
+certificate:
+  A_max: 5.0
+  delta_conf: 0.05
+
+logging:
+  save_dir: outputs/sat_pnp
+
+dataset:
+  train_path: data/math500/train.jsonl
+  test_path: data/aime24/test.jsonl
+  type: math500

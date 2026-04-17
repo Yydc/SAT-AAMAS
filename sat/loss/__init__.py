@@ -1,5 +1,5 @@
 """
-Policy loss functions for SAT-Seq recipe.
+Policy loss functions for SAT.
 
 This subpackage provides sequence-level policy gradient objectives with:
   - Sequence-level ratio clipping (PPO-style)
@@ -8,4 +8,3 @@ This subpackage provides sequence-level policy gradient objectives with:
 """
 
 __all__ = ["SeqRatioPolicyLoss"]
-

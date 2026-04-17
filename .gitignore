@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+build/
+dist/
+.eggs/
+.venv/
+venv/
+env/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+.claude/
+*.swp
+
+# Outputs / artefacts
+outputs/
+checkpoints/
+wandb/
+runs/
+logs/
+*.pt
+*.ckpt
+*.safetensors
+
+# Datasets cached locally (manually regenerable via prepare_data.py)
+data/demo/
+data/aime24/
+data/aime25/
+data/math500/
+data/math/
+data/dapo/
+data/zebralogic/
+data/arbench/
+data/planbench/
+data/autologi/
+hf_cache/
+.cache/

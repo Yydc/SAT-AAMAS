@@ -1,0 +1,81 @@
+# SAT demo configuration -- runs end-to-end locally on CPU.
+# Uses the built-in sat:tiny model so the training loop exercises every
+# component (rollout, advantage, loss, KL backtracking, certificate) without
+# downloading Hugging Face checkpoints.
+#
+# This config is the target of `bash scripts/setup_demo.sh`.
+
+algorithm:
+  gamma: 0.99
+  lam: 0.95
+  kl_penalty: kl
+  kl_ctrl:
+    type: per_state_quantile
+    kl_coef: 0.001
+    target_kl: 0.1
+    quantile: 0.95
+
+actor_rollout_ref:
+  actor:
+    use_kl_loss: true
+    kl_loss_type: k1+
+    kl_loss_coef: 0.001
+    ppo_epochs: 1
+    clip_ratio: 0.2
+    loss_agg_mode: token-mean
+  rollout:
+    n: 2
+  ref: {}
+
+data:
+  train_batch_size: 6
+  max_prompt_length: 128
+  max_response_length: 16
+
+generation:
+  temperature: 0.8
+  top_p: 1.0
+
+sat:
+  epsilon: 0.2
+  A_clip: 5.0
+  group_size: 3
+  epsilon_is: 1.0e-5
+  max_is_ratio_clip: 10.0
+  adv_mode: grpo
+  group_baseline: mean
+  group_norm: true
+  scheduler:
+    mode: static
+  max_backtracks: 2
+  stage0_delta: 0.01
+  agents:
+    - {name: agent_1, path: sat:tiny}
+    - {name: agent_2, path: sat:tiny}
+    - {name: agent_3, path: sat:tiny}
+
+training:
+  learning_rate: 1.0e-5
+  weight_decay: 0.01
+  warmup_steps: 0
+  vf_coef: 0.1
+  clip_vf: true
+  num_stages: 2
+
+evaluation:
+  num_samples_per_agent: 2
+  ensemble_strategy: majority_vote
+
+certificate:
+  A_max: 5.0
+  delta_conf: 0.05
+
+logging:
+  checkpoint_every_stage: 1
+  every_n_steps: 1
+  save_dir: outputs/sat_demo
+
+dataset:
+  train_path: data/demo/train.jsonl
+  test_path: data/demo/test.jsonl
+  type: demo

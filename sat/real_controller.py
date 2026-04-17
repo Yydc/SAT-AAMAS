@@ -23,17 +23,16 @@ from typing import Any, Dict, List
 
 import numpy as np
 
-from verl.models.causal_lm import ModelWithValueHead
+from sat.models import TinyModelWithValueHead, TinyTokenizer, is_tiny_model_path
 
 # Attempt to import PyTorch-related libraries
 try:
     import torch
     import torch.nn.functional as F
-    from transformers import AutoTokenizer
     HAS_TORCH = True
 except ImportError:
     HAS_TORCH = False
-    print("⚠️  Warning: PyTorch or transformers not installed.")
+    print("Warning: PyTorch or transformers not installed.")
     print("   Install with: pip install torch transformers")
 
 
@@ -66,17 +65,30 @@ class RealMultiAgentController:
         print(f"Using device: {self.device}")
         
         # Load agent models
-        agents_config = config.get("sat_seq", {}).get("agents", [])
+        sat_cfg = config.get("sat") or config.get("sat_seq") or {}
+        agents_config = sat_cfg.get("agents", [])
         for agent_cfg in agents_config:
             agent = self._load_agent(agent_cfg)
             self.agents.append(agent)
+        if not self.agents:
+            raise ValueError("No agents configured under `sat.agents`.")
         
         # Load dataset
         if mode == "train":
             self.train_dataset = self._load_dapo_dataset(dataset_path)
+            if not self.train_dataset:
+                raise ValueError(
+                    f"No training examples found at {dataset_path}. "
+                    "Run `python scripts/prepare_data.py --dataset demo` first."
+                )
             self.data_iterator = iter(self.train_dataset)
         elif mode == "inference":
             self.test_dataset = self._load_aime24_dataset(dataset_path)
+            if not self.test_dataset:
+                raise ValueError(
+                    f"No evaluation examples found at {dataset_path}. "
+                    "Run `python scripts/prepare_data.py --dataset demo` first."
+                )
         
         print(f"RealMultiAgentController initialized: {len(self.agents)} agents, mode={mode}")
         # The last batch used for a training stage (for KL measurement/loss)
@@ -98,7 +110,28 @@ class RealMultiAgentController:
         print(f"Loading {agent_name} from {model_path}...")
         
         try:
+            if is_tiny_model_path(model_path):
+                tokenizer = TinyTokenizer()
+                model = TinyModelWithValueHead(vocab_size=tokenizer.vocab_size)
+                model.to(self.device)
+                optimizer = torch.optim.AdamW(
+                    model.parameters(),
+                    lr=self.config.get("training", {}).get("learning_rate", 1e-5),
+                    weight_decay=self.config.get("training", {}).get("weight_decay", 0.01),
+                )
+                print(f"Loaded local tiny model for {agent_name}")
+                return {
+                    "name": agent_name,
+                    "path": model_path,
+                    "model": model,
+                    "tokenizer": tokenizer,
+                    "optimizer": optimizer,
+                }
+
             # Load tokenizer
+            from transformers import AutoTokenizer
+            from sat.models import ModelWithValueHead
+
             tokenizer = AutoTokenizer.from_pretrained(
                 model_path,
                 trust_remote_code=True,
@@ -127,20 +160,24 @@ class RealMultiAgentController:
                 "optimizer": optimizer,
             }
             
-            print(f"✅ Loaded {agent_name}")
+            print(f"Loaded {agent_name}")
             return agent
             
         except Exception as e:
-            print(f"❌ Failed to load {agent_name}: {e}")
-            print("   Using dummy agent for testing")
-            # Return a dummy agent as a fallback
-            return {
-                "name": agent_name,
-                "path": model_path,
-                "model": None,
-                "tokenizer": None,
-                "optimizer": None,
-            }
+            if self.config.get("debug", {}).get("allow_dummy_agents", False):
+                print(f"Failed to load {agent_name}: {e}")
+                print("Using dummy agent because debug.allow_dummy_agents=true")
+                return {
+                    "name": agent_name,
+                    "path": model_path,
+                    "model": None,
+                    "tokenizer": None,
+                    "optimizer": None,
+                }
+            raise RuntimeError(
+                f"Failed to load agent {agent_name} from {model_path}. "
+                "Use `sat:tiny` for the local demo or install/cache the requested HF checkpoint."
+            ) from e
     
     def _load_dapo_dataset(self, dataset_path: str) -> List[Dict]:
         """
@@ -160,14 +197,14 @@ class RealMultiAgentController:
             List[Dict]: A list of dataset examples.
         """
         if dataset_path is None:
-            print("⚠️  No dataset path provided, using dummy data")
+            print("No dataset path provided.")
             return []
         
         dataset = []
         dataset_file = Path(dataset_path)
         
         if not dataset_file.exists():
-            print(f"⚠️  Dataset file not found: {dataset_path}")
+            print(f"Dataset file not found: {dataset_path}")
             return []
         
         print(f"Loading DAPO dataset from {dataset_path}...")
@@ -178,7 +215,7 @@ class RealMultiAgentController:
                     data = json.loads(line)
                     dataset.append(data)
         
-        print(f"✅ Loaded {len(dataset)} examples from DAPO dataset")
+        print(f"Loaded {len(dataset)} examples from training dataset")
         return dataset
     
     def _load_aime24_dataset(self, dataset_path: str) -> List[Dict]:
@@ -198,14 +235,14 @@ class RealMultiAgentController:
             List[Dict]: A list of test set problems.
         """
         if dataset_path is None:
-            print("⚠️  No dataset path provided")
+            print("No dataset path provided")
             return []
         
         dataset = []
         dataset_file = Path(dataset_path)
         
         if not dataset_file.exists():
-            print(f"⚠️  Dataset file not found: {dataset_path}")
+            print(f"Dataset file not found: {dataset_path}")
             return []
         
         print(f"Loading AIME24 dataset from {dataset_path}...")
@@ -216,7 +253,7 @@ class RealMultiAgentController:
                     data = json.loads(line)
                     dataset.append(data)
         
-        print(f"✅ Loaded {len(dataset)} problems from AIME24")
+        print(f"Loaded {len(dataset)} evaluation problems")
         return dataset
     
     def num_agents(self) -> int:
@@ -255,7 +292,8 @@ class RealMultiAgentController:
         """
         batch_size = kwargs.get("batch_size", self.config.get("data", {}).get("train_batch_size", 512))
         max_seq_len = kwargs.get("max_seq_len", self.config.get("data", {}).get("max_response_length", 128))
-        group_size = self.config.get("sat_seq", {}).get("group_size", 4)
+        sat_cfg = self.config.get("sat") or self.config.get("sat_seq") or {}
+        group_size = sat_cfg.get("group_size", 4)
         
         if self.mode == "train":
             return self._generate_train_rollout(batch_size, max_seq_len, group_size)
@@ -277,6 +315,7 @@ class RealMultiAgentController:
         all_prompt_ids = []
         all_response_ids = []
         all_response_lens = []
+        all_agent_ids = []
         group_indices = []
         
         for group_idx in range(num_groups):
@@ -290,9 +329,10 @@ class RealMultiAgentController:
             prompt = sample.get("prompt", "")
             
             # Use the ensemble policy to generate multiple responses
-            for _ in range(group_size):
-                # Randomly select an agent
-                agent_id = np.random.randint(0, len(self.agents))
+            for sample_idx in range(group_size):
+                # Cycle agents inside prompt groups so each sequential update
+                # receives on-policy samples from its own current policy.
+                agent_id = (group_idx * group_size + sample_idx) % len(self.agents)
                 agent = self.agents[agent_id]
                 
                 if agent["model"] is None:
@@ -319,6 +359,7 @@ class RealMultiAgentController:
                 all_values.append(value)
                 all_rewards.append(reward)
                 group_indices.append(group_idx)
+                all_agent_ids.append(agent_id)
                 if prompt_ids_tensor is None or response_ids_tensor is None:
                     all_prompt_ids.append([])
                     all_response_ids.append([])
@@ -345,6 +386,7 @@ class RealMultiAgentController:
                 "num_episodes": num_episodes,
                 "group_size": group_size,
                 "group_index": group_index,
+                "agent_id": np.array(all_agent_ids, dtype=np.int64),
                 "response_len": np.array(all_response_lens),
             },
             "prompt_ids": all_prompt_ids,
@@ -621,6 +663,9 @@ class RealMultiAgentController:
         if self.active_agent_id is None:
             print("WARNING: No active agent")
             return
+        if loss_out.get("skip"):
+            print(f"Skipping optimization for agent {self.active_agent_id}: {loss_out.get('aux', {}).get('reason')}")
+            return
         
         agent = self.agents[self.active_agent_id]
         if agent["model"] is None:
@@ -671,22 +716,39 @@ class RealMultiAgentController:
         response_ids_list = self.last_stage_batch.get("response_ids", [])
         logp_old = self.last_stage_batch.get("logp_cur")
         resp_lens = self.last_stage_batch.get("meta", {}).get("response_len")
+        agent_ids = self.last_stage_batch.get("meta", {}).get("agent_id")
         if not isinstance(logp_old, np.ndarray) or len(prompt_ids_list) == 0:
             return np.random.exponential(0.02, 128)
+
+        if isinstance(agent_ids, np.ndarray):
+            keep = np.where(agent_ids == agent_id)[0]
+            if len(keep) == 0:
+                return np.zeros(1, dtype=np.float32)
+            prompt_ids_list = [prompt_ids_list[i] for i in keep]
+            response_ids_list = [response_ids_list[i] for i in keep]
+            logp_old = logp_old[keep]
+            resp_lens = resp_lens[keep] if resp_lens is not None else None
+
         with torch.no_grad():
             logp_new = self.compute_logprobs_for_batch(agent_id, prompt_ids_list, response_ids_list, resp_lens)
         logp_new_np = logp_new.detach().cpu().numpy()
         T = logp_old.shape[1]
         logp_new_np = logp_new_np[:, :T]
         
-        # Use a more accurate KL divergence estimate: E[logp_new - logp_old]
-        kl_div = logp_new_np - logp_old[:, :T]
-        
-        # Mask out padding
-        mask = logp_old[:, :T] > -10.0
-        
-        # Calculate KL divergence per sequence (token-wise mean)
-        kl_per_sequence = np.sum(kl_div * mask, axis=1) / np.sum(mask, axis=1)
+        log_ratio = np.clip(logp_new_np - logp_old[:, :T], -10.0, 10.0)
+        ratio = np.exp(log_ratio)
+        # Non-negative sampled KL proxy under old-policy samples:
+        # E_old[(r - 1) - log r] = KL(pi_old || pi_new).
+        kl_proxy = (ratio - 1.0) - log_ratio
+
+        if resp_lens is None:
+            lengths = np.full((logp_old.shape[0],), T, dtype=np.int64)
+        else:
+            lengths = np.asarray(resp_lens, dtype=np.int64)
+        lengths = np.clip(lengths, 1, T)
+        mask = np.arange(T)[None, :] < lengths[:, None]
+
+        kl_per_sequence = np.sum(kl_proxy * mask, axis=1) / np.sum(mask, axis=1)
         
         return kl_per_sequence.astype(np.float32)
     
@@ -732,4 +794,3 @@ class RealMultiAgentController:
                     'stage': stage_idx,
                 }, checkpoint_path)
                 print(f"Saved {agent['name']} to {checkpoint_path}")
-

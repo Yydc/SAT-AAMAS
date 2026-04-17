@@ -1,0 +1,78 @@
+# SAT default configuration
+# Mirrors the hyper-parameters reported in the manuscript (Section 5.1).
+# Small demo? Use configs/sat_demo.yaml instead.
+
+algorithm:
+  gamma: 0.99
+  lam: 0.95                      # GAE lambda
+  kl_penalty: kl
+  kl_ctrl:
+    type: per_state_quantile
+    kl_coef: 0.001               # initial KL penalty coefficient beta
+    target_kl: 0.05              # per-agent KL radius delta_i (target)
+    quantile: 0.99               # (1 - alpha) tail of per-state KL
+
+actor_rollout_ref:
+  actor:
+    use_kl_loss: true
+    kl_loss_type: k1+
+    kl_loss_coef: 0.001
+    ppo_epochs: 1
+    clip_ratio: 0.2
+    loss_agg_mode: token-mean
+  rollout:
+    n: 4                         # group size G_grp
+  ref: {}
+
+data:
+  train_batch_size: 512
+  max_prompt_length: 512
+  max_response_length: 32768     # matches Section 5.1
+
+generation:
+  temperature: 0.8
+  top_p: 1.0
+
+sat:
+  epsilon: 0.2                   # PPO clip epsilon
+  A_clip: 5.0                    # symmetric advantage clip (A_max)
+  group_size: 4                  # G_grp in Section 4
+  epsilon_is: 1.0e-5
+  max_is_ratio_clip: 10.0
+  adv_mode: grpo                 # grpo | gae
+  group_baseline: mean           # mean | max
+  group_norm: true
+  scheduler:
+    mode: static                 # static | random | greedy_info_gain
+  max_backtracks: 5              # backtrack budget when KL exceeds target
+  stage0_delta: 0.01             # per-state KL budget for plug-and-play
+  agents:
+    - {name: agent_1, path: Qwen/Qwen3-4B-Instruct}
+    - {name: agent_2, path: Qwen/Qwen3-4B-Instruct}
+    - {name: agent_3, path: Qwen/Qwen3-4B-Instruct}
+
+training:
+  learning_rate: 1.0e-5
+  weight_decay: 0.01
+  warmup_steps: 100
+  vf_coef: 0.1
+  clip_vf: true
+  num_stages: 10
+
+evaluation:
+  num_samples_per_agent: 64      # avg@K / pass@K budget
+  ensemble_strategy: majority_vote
+
+certificate:
+  A_max: 5.0                     # matches A_clip; acts as advantage ceiling
+  delta_conf: 0.05               # 1 - confidence level
+
+logging:
+  checkpoint_every_stage: 1
+  every_n_steps: 10
+  save_dir: outputs/sat_default
+
+dataset:
+  train_path: data/math500/train.jsonl
+  test_path: data/aime24/test.jsonl
+  type: math500

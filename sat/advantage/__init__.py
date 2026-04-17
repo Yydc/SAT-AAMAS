@@ -1,5 +1,5 @@
 """
-Advantage estimators for SAT-Seq recipe.
+Advantage estimators for SAT.
 
 This subpackage provides sequence-aware advantage estimation with:
   - Group-based normalization
@@ -8,4 +8,3 @@ This subpackage provides sequence-aware advantage estimation with:
 """
 
 __all__ = ["SATSeqAdvEstimator"]
-

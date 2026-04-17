@@ -1,12 +1,18 @@
-"""SAT-Seq Stage Coordinator - Orchestrates the end-to-end process of a single training stage."""
+"""SAT Stage Coordinator - Orchestrates the end-to-end process of a single training stage.
+
+Implements the outer loop of Algorithm 1 (SAT): collect on-policy rollouts,
+pick an update order via the scheduler, then perform sequential trust-region
+updates on each agent with quantile-based KL backtracking. After the sweep,
+delegates to the certificate monitor to emit the stage lower bound.
+"""
 
 from dataclasses import dataclass
 from typing import Dict, List
 
-from recipe.sat_seq.adv.seqaware import SATSeqAdvEstimator
-from recipe.sat_seq.data.reweighting import TruncatedISReweighter
-from recipe.sat_seq.kl.quantile_kl_ctrl import QuantileKLController
-from recipe.sat_seq.loss.seq_ratio_loss import SeqRatioPolicyLoss
+from sat.advantage.seqaware import SATSeqAdvEstimator
+from sat.data.reweighting import TruncatedISReweighter
+from sat.kl.quantile_kl_ctrl import QuantileKLController
+from sat.loss.seq_ratio_loss import SeqRatioPolicyLoss
 
 
 @dataclass
@@ -18,14 +24,15 @@ class InfoGeom:
 
 class StageCoordinator:
     """
-    Coordinates the execution of a single SAT-Seq training stage.
+    Coordinates the execution of a single SAT training stage.
     
     Process: Collect data -> Determine agent order -> Sequentially update each agent -> Calculate certificate
     """
 
     def __init__(self, cfg: Dict):
         self.cfg = cfg
-        self.max_backtracks = cfg.get("sat_seq", {}).get("max_backtracks", 5)
+        sat_cfg = cfg.get("sat") or cfg.get("sat_seq") or {}
+        self.max_backtracks = sat_cfg.get("max_backtracks", 5)
         
         # Initialize components
         self.reweighter = TruncatedISReweighter(cfg)
@@ -34,7 +41,7 @@ class StageCoordinator:
         self.policy_loss = SeqRatioPolicyLoss(cfg)
 
     def run_one_stage(self, controller, scheduler, cert_monitor) -> Dict:
-        """Executes a complete SAT-Seq stage."""
+        """Executes a complete SAT stage."""
         
         # 1. Collect on-policy data
         stage_batch = self._collect_on_policy(controller)

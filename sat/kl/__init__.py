@@ -1,5 +1,5 @@
 """
-KL controllers for SAT-Seq recipe.
+KL controllers for SAT.
 
 This subpackage provides quantile-based KL control with:
   - Per-agent adaptive β coefficients
@@ -8,4 +8,3 @@ This subpackage provides quantile-based KL control with:
 """
 
 __all__ = ["QuantileKLController", "KLStats"]
-
